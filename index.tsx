@@ -1,0 +1,426 @@
+import React, { useState, useEffect } from 'react';
+import { Plus, Trash2, Eye, Upload, CheckCircle, AlertCircle } from 'lucide-react';
+
+const VolleyballControlPanel = () => {
+  const [gamedays, setGamedays] = useState([]);
+  const [currentGameday, setCurrentGameday] = useState({
+    title: '',
+    games: []
+  });
+  const [showPreview, setShowPreview] = useState(false);
+  const [githubConfig, setGithubConfig] = useState({
+    token: '',
+    owner: '',
+    repo: '',
+    branch: 'main'
+  });
+  const [uploadStatus, setUploadStatus] = useState({ type: '', message: '' });
+  const [isUploading, setIsUploading] = useState(false);
+
+  const teams = [
+    { name: 'ΜΙΛΩΝ', subtitle: 'Α.Ο.Ν.Σ.', logo: 'milon.png', color: '#228B22' },
+    { name: 'ΚΑΛΑΜΑΤΑ', subtitle: 'Α.Ο. 80', logo: 'kalamata.png', color: '#32CD32' },
+    { name: 'Ο.Φ.Η.', subtitle: '', logo: 'ofi.png', color: '#2c2c2c' },
+    { name: 'ΚΗΦΙΣΙΑ', subtitle: 'Α.Ο.Π.', logo: 'kifisia.png', color: '#4169E1' },
+    { name: 'Π.Α.Ο.Κ.', subtitle: '', logo: 'paok.png', color: '#1a1a1a' },
+    { name: 'ΦΟΙΝΙΚΑΣ ΣΥΡΟΥ', subtitle: 'Α.Ο.', logo: 'foinika.png', color: '#FF4500' },
+    { name: 'ΠΑΝΙΩΝΙΟΣ', subtitle: 'Γ.Σ.Σ.', logo: 'panionios.png', color: '#DC143C' },
+    { name: 'ΟΛΥΜΠΙΑΚΟΣ', subtitle: 'Σ.Φ.Π. ΟΝΕΧ', logo: 'olympiakos.png', color: '#dc1414' },
+    { name: 'ΠΑΝΑΘΗΝΑΙΚΟΣ', subtitle: 'Α.Ο.', logo: 'panathinaikos.png', color: '#16a34a' },
+    { name: 'ΦΛΟΙΣΒΟΣ Π.', subtitle: 'ΦΑΛΗΡΟΥ Α.Ο.', logo: 'floisvos.png', color: '#1E90FF' }
+  ];
+
+  const emptyGame = {
+    homeTeam: '',
+    awayTeam: '',
+    homeScore: 0,
+    awayScore: 0,
+    sets: []
+  };
+
+  const addGame = () => {
+    setCurrentGameday({
+      ...currentGameday,
+      games: [...currentGameday.games, { ...emptyGame }]
+    });
+  };
+
+  const removeGame = (index) => {
+    const newGames = currentGameday.games.filter((_, i) => i !== index);
+    setCurrentGameday({ ...currentGameday, games: newGames });
+  };
+
+  const updateGame = (index, field, value) => {
+    const newGames = [...currentGameday.games];
+    newGames[index][field] = value;
+    setCurrentGameday({ ...currentGameday, games: newGames });
+  };
+
+  const addSet = (gameIndex) => {
+    const newGames = [...currentGameday.games];
+    newGames[gameIndex].sets.push({ homePoints: 0, awayPoints: 0 });
+    setCurrentGameday({ ...currentGameday, games: newGames });
+  };
+
+  const updateSet = (gameIndex, setIndex, field, value) => {
+    const newGames = [...currentGameday.games];
+    newGames[gameIndex].sets[setIndex][field] = parseInt(value) || 0;
+    
+    // Auto-calculate main scores
+    const sets = newGames[gameIndex].sets;
+    let homeScore = 0;
+    let awayScore = 0;
+    
+    sets.forEach(set => {
+      if (set.homePoints > set.awayPoints) homeScore++;
+      else if (set.awayPoints > set.homePoints) awayScore++;
+    });
+    
+    newGames[gameIndex].homeScore = homeScore;
+    newGames[gameIndex].awayScore = awayScore;
+    
+    setCurrentGameday({ ...currentGameday, games: newGames });
+  };
+
+  const removeSet = (gameIndex, setIndex) => {
+    const newGames = [...currentGameday.games];
+    newGames[gameIndex].sets.splice(setIndex, 1);
+    setCurrentGameday({ ...currentGameday, games: newGames });
+  };
+
+  const uploadToGitHub = async () => {
+    if (!githubConfig.token || !githubConfig.owner || !githubConfig.repo) {
+      setUploadStatus({
+        type: 'error',
+        message: 'Παρακαλώ συμπληρώστε όλα τα στοιχεία GitHub'
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadStatus({ type: 'info', message: 'Ανέβασμα στο GitHub...' });
+
+    try {
+      // First, try to get existing file to get its SHA
+      const getUrl = `https://api.github.com/repos/${githubConfig.owner}/${githubConfig.repo}/contents/volleyball-results.json`;
+      
+      let sha = null;
+      let existingGamedays = [];
+      
+      try {
+        const getResponse = await fetch(getUrl, {
+          headers: {
+            'Authorization': `token ${githubConfig.token}`,
+            'Accept': 'application/vnd.github.v3+json'
+          }
+        });
+        
+        if (getResponse.ok) {
+          const data = await getResponse.json();
+          sha = data.sha;
+          // Decode existing content
+          const content = atob(data.content);
+          existingGamedays = JSON.parse(content);
+        }
+      } catch (e) {
+        // File doesn't exist yet, that's okay
+        console.log('File does not exist, will create new');
+      }
+
+      // Add new gameday to existing data
+      const updatedGamedays = [...existingGamedays, currentGameday];
+      const jsonContent = JSON.stringify(updatedGamedays, null, 2);
+      const encodedContent = btoa(unescape(encodeURIComponent(jsonContent)));
+
+      // Upload to GitHub
+      const uploadUrl = `https://api.github.com/repos/${githubConfig.owner}/${githubConfig.repo}/contents/volleyball-results.json`;
+      
+      const uploadResponse = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `token ${githubConfig.token}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: `Update volleyball results - ${currentGameday.title}`,
+          content: encodedContent,
+          branch: githubConfig.branch,
+          ...(sha && { sha })
+        })
+      });
+
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.json();
+        throw new Error(errorData.message || 'Failed to upload');
+      }
+
+      setUploadStatus({
+        type: 'success',
+        message: '✅ Επιτυχής ανέβασμα στο GitHub! Τα αποτελέσματα είναι live.'
+      });
+
+      // Update local gamedays
+      setGamedays(updatedGamedays);
+      
+      // Reset current gameday
+      setCurrentGameday({ title: '', games: [] });
+
+    } catch (error) {
+      setUploadStatus({
+        type: 'error',
+        message: `❌ Σφάλμα: ${error.message}`
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-8">
+      <div className="max-w-6xl mx-auto">
+        <div className="bg-slate-800/90 backdrop-blur-sm rounded-2xl shadow-2xl p-8 border border-blue-500/20">
+          {/* Header */}
+          <h1 className="text-4xl font-bold text-white mb-2 text-center">
+            Volleyball Results Control Panel
+          </h1>
+          <p className="text-blue-300 text-center mb-8">Διαχείριση Αποτελεσμάτων Αγώνων</p>
+
+          {/* GitHub Configuration */}
+          <div className="mb-8 bg-slate-700/50 rounded-xl p-6 border border-blue-500/20">
+            <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+              <Upload size={24} /> GitHub Configuration
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-blue-300 font-semibold mb-2">GitHub Token</label>
+                <input
+                  type="password"
+                  value={githubConfig.token}
+                  onChange={(e) => setGithubConfig({...githubConfig, token: e.target.value})}
+                  placeholder="ghp_xxxxxxxxxxxx"
+                  className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-blue-500/30 focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-blue-300 font-semibold mb-2">Repository Owner</label>
+                <input
+                  type="text"
+                  value={githubConfig.owner}
+                  onChange={(e) => setGithubConfig({...githubConfig, owner: e.target.value})}
+                  placeholder="your-username"
+                  className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-blue-500/30 focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-blue-300 font-semibold mb-2">Repository Name</label>
+                <input
+                  type="text"
+                  value={githubConfig.repo}
+                  onChange={(e) => setGithubConfig({...githubConfig, repo: e.target.value})}
+                  placeholder="my-volleyball-site"
+                  className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-blue-500/30 focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-blue-300 font-semibold mb-2">Branch</label>
+                <input
+                  type="text"
+                  value={githubConfig.branch}
+                  onChange={(e) => setGithubConfig({...githubConfig, branch: e.target.value})}
+                  placeholder="main"
+                  className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-blue-500/30 focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Upload Status */}
+          {uploadStatus.message && (
+            <div className={`mb-6 p-4 rounded-lg flex items-center gap-3 ${
+              uploadStatus.type === 'success' ? 'bg-green-500/20 border border-green-500/50 text-green-300' :
+              uploadStatus.type === 'error' ? 'bg-red-500/20 border border-red-500/50 text-red-300' :
+              'bg-blue-500/20 border border-blue-500/50 text-blue-300'
+            }`}>
+              {uploadStatus.type === 'success' ? <CheckCircle size={24} /> :
+               uploadStatus.type === 'error' ? <AlertCircle size={24} /> :
+               <Upload size={24} />}
+              <span className="font-semibold">{uploadStatus.message}</span>
+            </div>
+          )}
+
+          {/* Gameday Title */}
+          <div className="mb-8">
+            <label className="block text-white font-semibold mb-2">Τίτλος Αγωνιστικής</label>
+            <input
+              type="text"
+              value={currentGameday.title}
+              onChange={(e) => setCurrentGameday({ ...currentGameday, title: e.target.value })}
+              placeholder="π.χ. ΑΠΟΤΕΛΕΣΜΑΤΑ ΠΡΟΗΓΟΥΜΕΝΗΣ ΑΓΩΝΙΣΤΙΚΗΣ"
+              className="w-full px-4 py-3 bg-slate-700 text-white rounded-lg border border-blue-500/30 focus:border-blue-500 focus:outline-none"
+            />
+          </div>
+
+          {/* Games */}
+          <div className="space-y-6 mb-8">
+            {currentGameday.games.map((game, gameIndex) => (
+              <div key={gameIndex} className="bg-slate-700/50 rounded-xl p-6 border border-blue-500/20">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-xl font-bold text-white">Αγώνας {gameIndex + 1}</h3>
+                  <button
+                    onClick={() => removeGame(gameIndex)}
+                    className="p-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  {/* Home Team */}
+                  <div>
+                    <label className="block text-blue-300 font-semibold mb-2">Γηπεδούχος</label>
+                    <select
+                      value={game.homeTeam}
+                      onChange={(e) => updateGame(gameIndex, 'homeTeam', e.target.value)}
+                      className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-blue-500/30 focus:border-blue-500 focus:outline-none"
+                    >
+                      <option value="">Επιλέξτε ομάδα</option>
+                      {teams.map(team => (
+                        <option key={team.name} value={team.name}>{team.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Away Team */}
+                  <div>
+                    <label className="block text-blue-300 font-semibold mb-2">Φιλοξενούμενος</label>
+                    <select
+                      value={game.awayTeam}
+                      onChange={(e) => updateGame(gameIndex, 'awayTeam', e.target.value)}
+                      className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-blue-500/30 focus:border-blue-500 focus:outline-none"
+                    >
+                      <option value="">Επιλέξτε ομάδα</option>
+                      {teams.map(team => (
+                        <option key={team.name} value={team.name}>{team.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Final Score */}
+                <div className="flex items-center gap-4 mb-4 justify-center">
+                  <div className="text-center">
+                    <label className="block text-blue-300 text-sm mb-1">Sets Γηπ.</label>
+                    <div className="text-3xl font-bold text-white bg-slate-600 px-6 py-2 rounded-lg">
+                      {game.homeScore}
+                    </div>
+                  </div>
+                  <div className="text-3xl font-bold text-blue-400">-</div>
+                  <div className="text-center">
+                    <label className="block text-blue-300 text-sm mb-1">Sets Φιλ.</label>
+                    <div className="text-3xl font-bold text-white bg-slate-600 px-6 py-2 rounded-lg">
+                      {game.awayScore}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sets */}
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <label className="text-blue-300 font-semibold">Σετ</label>
+                    <button
+                      onClick={() => addSet(gameIndex)}
+                      className="px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg transition text-sm flex items-center gap-2"
+                    >
+                      <Plus size={16} /> Προσθήκη Σετ
+                    </button>
+                  </div>
+
+                  {game.sets.map((set, setIndex) => (
+                    <div key={setIndex} className="flex items-center gap-3 bg-slate-600/50 p-3 rounded-lg">
+                      <span className="text-white font-semibold min-w-[60px]">{setIndex + 1}ο Σετ</span>
+                      <input
+                        type="number"
+                        value={set.homePoints}
+                        onChange={(e) => updateSet(gameIndex, setIndex, 'homePoints', e.target.value)}
+                        className="w-20 px-3 py-2 bg-slate-700 text-white rounded-lg border border-blue-500/30 focus:border-blue-500 focus:outline-none text-center"
+                        min="0"
+                      />
+                      <span className="text-blue-400 font-bold">-</span>
+                      <input
+                        type="number"
+                        value={set.awayPoints}
+                        onChange={(e) => updateSet(gameIndex, setIndex, 'awayPoints', e.target.value)}
+                        className="w-20 px-3 py-2 bg-slate-700 text-white rounded-lg border border-blue-500/30 focus:border-blue-500 focus:outline-none text-center"
+                        min="0"
+                      />
+                      <button
+                        onClick={() => removeSet(gameIndex, setIndex)}
+                        className="ml-auto p-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-4">
+            <button
+              onClick={addGame}
+              className="flex-1 py-3 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-lg transition flex items-center justify-center gap-2"
+            >
+              <Plus size={20} /> Προσθήκη Αγώνα
+            </button>
+            <button
+              onClick={() => setShowPreview(!showPreview)}
+              className="flex-1 py-3 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-lg transition flex items-center justify-center gap-2"
+            >
+              <Eye size={20} /> {showPreview ? 'Απόκρυψη Preview' : 'Preview'}
+            </button>
+            <button
+              onClick={uploadToGitHub}
+              className="flex-1 py-3 bg-green-500 hover:bg-green-600 text-white font-bold rounded-lg transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!currentGameday.title || currentGameday.games.length === 0 || isUploading}
+            >
+              <Upload size={20} /> {isUploading ? 'Ανέβασμα...' : 'Αποθήκευση στο GitHub'}
+            </button>
+          </div>
+
+          {/* Preview */}
+          {showPreview && (
+            <div className="mt-8 bg-slate-700/50 rounded-xl p-6 border border-blue-500/20">
+              <h3 className="text-2xl font-bold text-white mb-4">Preview JSON Output</h3>
+              <pre className="bg-slate-900 text-green-400 p-4 rounded-lg overflow-x-auto text-sm max-h-96">
+                {JSON.stringify([...gamedays, currentGameday], null, 2)}
+              </pre>
+            </div>
+          )}
+
+          {/* Instructions */}
+          <div className="mt-8 bg-blue-500/10 border border-blue-500/30 rounded-xl p-6">
+            <h3 className="text-xl font-bold text-blue-300 mb-3">📋 Οδηγίες Χρήσης</h3>
+            <ol className="text-blue-200 space-y-2 list-decimal list-inside">
+              <li>Δημιουργήστε ένα <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer" className="text-blue-400 underline">GitHub Personal Access Token</a> με δικαιώματα <code className="bg-slate-700 px-2 py-1 rounded">repo</code></li>
+              <li>Συμπληρώστε τα στοιχεία του GitHub repository σας παραπάνω</li>
+              <li>Εισάγετε τον τίτλο της αγωνιστικής</li>
+              <li>Προσθέστε αγώνες και συμπληρώστε τα αποτελέσματα</li>
+              <li>Κάντε κλικ στο "Αποθήκευση στο GitHub" - το αρχείο θα ανέβει αυτόματα!</li>
+              <li>Τα αποτελέσματα θα εμφανιστούν αυτόματα στη σελίδα results</li>
+            </ol>
+            <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+              <p className="text-yellow-300 text-sm">
+                ⚠️ <strong>Σημαντικό:</strong> Το GitHub token σας είναι ευαίσθητο. Μην το μοιραστείτε με κανέναν και μην το δημοσιεύσετε online.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default VolleyballControlPanel;
