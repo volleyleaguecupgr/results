@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Volleyball Results Control Panel</title>
+
+  <!-- Tailwind via CDN for quick styling (same class names as your TSX) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    /* small helper to visually disable button while keeping layout */
+    .disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+    /* ensure pre is scrollable & matches original look */
+    pre.json-preview { white-space: pre; overflow: auto; max-height: 24rem; }
+  </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-8">
+
+  <div class="max-w-6xl mx-auto">
+    <div id="app" class="bg-slate-800/90 backdrop-blur-sm rounded-2xl shadow-2xl p-8 border border-blue-500/20">
+
+      <!-- Header -->
+      <h1 class="text-4xl font-bold text-white mb-2 text-center">Volleyball Results Control Panel</h1>
+      <p class="text-blue-300 text-center mb-8">Διαχείριση Αποτελεσμάτων Αγώνων</p>
+
+      <!-- GitHub Configuration -->
+      <div class="mb-8 bg-slate-700/50 rounded-xl p-6 border border-blue-500/20">
+        <h2 class="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+          <!-- upload icon -->
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" class="inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 5 17 10"/><line x1="12" y1="5" x2="12" y2="19"/></svg>
+          GitHub Configuration
+        </h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-blue-300 font-semibold mb-2">GitHub Token</label>
+            <input id="gh-token" type="password" placeholder="ghp_xxxxxxxxxxxx"
+              class="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-blue-500/30 focus:border-blue-500 focus:outline-none" />
+          </div>
+
+          <div>
+            <label class="block text-blue-300 font-semibold mb-2">Repository Owner</label>
+            <input id="gh-owner" type="text" placeholder="your-username"
+              class="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-blue-500/30 focus:border-blue-500 focus:outline-none" />
+          </div>
+
+          <div>
+            <label class="block text-blue-300 font-semibold mb-2">Repository Name</label>
+            <input id="gh-repo" type="text" placeholder="my-volleyball-site"
+              class="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-blue-500/30 focus:border-blue-500 focus:outline-none" />
+          </div>
+
+          <div>
+            <label class="block text-blue-300 font-semibold mb-2">Branch</label>
+            <input id="gh-branch" type="text" value="main" placeholder="main"
+              class="w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-blue-500/30 focus:border-blue-500 focus:outline-none" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Upload Status -->
+      <div id="upload-status-container" class="mb-6 hidden p-4 rounded-lg flex items-center gap-3">
+        <span id="upload-icon" class="inline-block"></span>
+        <span id="upload-message" class="font-semibold"></span>
+      </div>
+
+      <!-- Gameday Title -->
+      <div class="mb-8">
+        <label class="block text-white font-semibold mb-2">Τίτλος Αγωνιστικής</label>
+        <input id="gameday-title" type="text"
+          placeholder="π.χ. ΑΠΟΤΕΛΕΣΜΑΤΑ ΠΡΟΗΓΟΥΜΕΝΗΣ ΑΓΩΝΙΣΤΙΚΗΣ"
+          class="w-full px-4 py-3 bg-slate-700 text-white rounded-lg border border-blue-500/30 focus:border-blue-500 focus:outline-none" />
+      </div>
+
+      <!-- Games container -->
+      <div id="games-container" class="space-y-6 mb-8"></div>
+
+      <!-- Action Buttons -->
+      <div class="flex gap-4">
+        <button id="add-game-btn"
+          class="flex-1 py-3 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-lg transition flex items-center justify-center gap-2">
+          <!-- plus icon -->
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" class="inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Προσθήκη Αγώνα
+        </button>
+
+        <button id="toggle-preview-btn"
+          class="flex-1 py-3 bg-purple-500 hover:bg-purple-600 text-white font-bold rounded-lg transition flex items-center justify-center gap-2">
+          <!-- eye icon -->
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" class="inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          <span id="toggle-preview-label">Preview</span>
+        </button>
+
+        <button id="upload-gh-btn"
+          class="flex-1 py-3 bg-green-500 hover:bg-green-600 text-white font-bold rounded-lg transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+          <!-- upload icon -->
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" class="inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 5 17 10"/><line x1="12" y1="5" x2="12" y2="19"/></svg>
+          <span id="upload-gh-label">Αποθήκευση στο GitHub</span>
+        </button>
+      </div>
+
+      <!-- Preview -->
+      <div id="preview-area" class="mt-8 bg-slate-700/50 rounded-xl p-6 border border-blue-500/20 hidden">
+        <h3 class="text-2xl font-bold text-white mb-4">Preview JSON Output</h3>
+        <pre id="preview-json" class="json-preview bg-slate-900 text-green-400 p-4 rounded-lg text-sm"></pre>
+      </div>
+
+      <!-- Instructions -->
+      <div class="mt-8 bg-blue-500/10 border border-blue-500/30 rounded-xl p-6">
+        <h3 class="text-xl font-bold text-blue-300 mb-3">📋 Οδηγίες Χρήσης</h3>
+        <ol class="text-blue-200 space-y-2 list-decimal list-inside">
+          <li>Δημιουργήστε ένα <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer" class="text-blue-400 underline">GitHub Personal Access Token</a> με δικαιώματα <code class="bg-slate-700 px-2 py-1 rounded">repo</code></li>
+          <li>Συμπληρώστε τα στοιχεία του GitHub repository σας παραπάνω</li>
+          <li>Εισάγετε τον τίτλο της αγωνιστικής</li>
+          <li>Προσθέστε αγώνες και συμπληρώστε τα αποτελέσματα</li>
+          <li>Κάντε κλικ στο "Αποθήκευση στο GitHub" - το αρχείο θα ανέβει αυτόματα!</li>
+          <li>Τα αποτελέσματα θα εμφανιστούν αυτόματα στη σελίδα results</li>
+        </ol>
+
+        <div class="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+          <p class="text-yellow-300 text-sm">
+            ⚠️ <strong>Σημαντικό:</strong> Το GitHub token σας είναι ευαίσθητο. Μην το μοιραστείτε με κανέναν και μην το δημοσιεύσετε online.
+          </p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+<script>
+/* ========== Application state (vanilla JS) ========== */
+
+const teams = [
+  { name: 'ΜΙΛΩΝ', subtitle: 'Α.Ο.Ν.Σ.', logo: 'milon.png', color: '#228B22' },
+  { name: 'ΚΑΛΑΜΑΤΑ', subtitle: 'Α.Ο. 80', logo: 'kalamata.png', color: '#32CD32' },
+  { name: 'Ο.Φ.Η.', subtitle: '', logo: 'ofi.png', color: '#2c2c2c' },
+  { name: 'ΚΗΦΙΣΙΑ', subtitle: 'Α.Ο.Π.', logo: 'kifisia.png', color: '#4169E1' },
+  { name: 'Π.Α.Ο.Κ.', subtitle: '', logo: 'paok.png', color: '#1a1a1a' },
+  { name: 'ΦΟΙΝΙΚΑΣ ΣΥΡΟΥ', subtitle: 'Α.Ο.', logo: 'foinika.png', color: '#FF4500' },
+  { name: 'ΠΑΝΙΩΝΙΟΣ', subtitle: 'Γ.Σ.Σ.', logo: 'panionios.png', color: '#DC143C' },
+  { name: 'ΟΛΥΜΠΙΑΚΟΣ', subtitle: 'Σ.Φ.Π. ΟΝΕΧ', logo: 'olympiakos.png', color: '#dc1414' },
+  { name: 'ΠΑΝΑΘΗΝΑΙΚΟΣ', subtitle: 'Α.Ο.', logo: 'panathinaikos.png', color: '#16a34a' },
+  { name: 'ΦΛΟΙΣΒΟΣ Π.', subtitle: 'ΦΑΛΗΡΟΥ Α.Ο.', logo: 'floisvos.png', color: '#1E90FF' }
+];
+
+const emptyGame = () => ({
+  homeTeam: '',
+  awayTeam: '',
+  homeScore: 0,
+  awayScore: 0,
+  sets: []
+});
+
+let gamedays = [];                 // stored gamedays uploaded or local history
+let currentGameday = { title: '', games: [] };
+let showPreview = false;
+let githubConfig = { token: '', owner: '', repo: '', branch: 'main' };
+let uploadStatus = { type: '', message: '' };
+let isUploading = false;
+
+/* ========== DOM elements ========== */
+const gamesContainer = document.getElementById('games-container');
+const addGameBtn = document.getElementById('add-game-btn');
+const togglePreviewBtn = document.getElementById('toggle-preview-btn');
+const togglePreviewLabel = document.getElementById('toggle-preview-label');
+const previewArea = document.getElementById('preview-area');
+const previewJson = document.getElementById('preview-json');
+
+const ghTokenInput = document.getElementById('gh-token');
+const ghOwnerInput = document.getElementById('gh-owner');
+const ghRepoInput = document.getElementById('gh-repo');
+const ghBranchInput = document.getElementById('gh-branch');
+
+const uploadStatusContainer = document.getElementById('upload-status-container');
+const uploadIcon = document.getElementById('upload-icon');
+const uploadMessage = document.getElementById('upload-message');
+const uploadGhBtn = document.getElementById('upload-gh-btn');
+const uploadGhLabel = document.getElementById('upload-gh-label');
+
+const gamedayTitleInput = document.getElementById('gameday-title');
+
+/* ========== Helpers ========== */
+
+function renderTeamsOptions() {
+  // returns HTML string of options
+  return teams.map(t => `<option value="${escapeHtml(t.name)}">${escapeHtml(t.name)}</option>`).join('');
+}
+
+function escapeHtml(str) {
+  return (str+'').replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+function setUploadStatus(status) {
+  uploadStatus = status;
+  if (!status.message) {
+    uploadStatusContainer.classList.add('hidden');
+    uploadStatusContainer.classList.remove('bg-green-500/20','border','border-green-500/50','text-green-300','bg-red-500/20','text-red-300','bg-blue-500/20','text-blue-300');
+    uploadIcon.innerHTML = '';
+    uploadMessage.textContent = '';
+    return;
+  }
+  uploadStatusContainer.classList.remove('hidden');
+  // Clear classes
+  uploadStatusContainer.classList.remove('bg-green-500/20','border-green-500/50','text-green-300','bg-red-500/20','border-red-500/50','text-red-300','bg-blue-500/20','border-blue-500/50','text-blue-300');
+  // apply type
+  if (status.type === 'success') {
+    uploadStatusContainer.classList.add('bg-green-500/20','border','border-green-500/50','text-green-300');
+    uploadIcon.innerHTML = successSvg();
+  } else if (status.type === 'error') {
+    uploadStatusContainer.classList.add('bg-red-500/20','border','border-red-500/50','text-red-300');
+    uploadIcon.innerHTML = errorSvg();
+  } else {
+    uploadStatusContainer.classList.add('bg-blue-500/20','border','border-blue-500/50','text-blue-300');
+    uploadIcon.innerHTML = uploadSvg();
+  }
+  uploadMessage.textContent = status.message;
+}
+
+/* simple inline SVGs for icons */
+function uploadSvg() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 5 17 10"/><line x1="12" y1="5" x2="12" y2="19"/></svg>`;
+}
+function successSvg() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 11l3 3L22 4"/><path d="M21 12v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6"/></svg>`;
+}
+function errorSvg() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`;
+}
+
+/* ========== Rendering functions ========== */
+
+function renderGames() {
+  gamesContainer.innerHTML = '';
+  currentGameday.games.forEach((game, gameIndex) => {
+    const gameEl = document.createElement('div');
+    gameEl.className = 'bg-slate-700/50 rounded-xl p-6 border border-blue-500/20';
+
+    // header row
+    const headerRow = document.createElement('div');
+    headerRow.className = 'flex justify-between items-center mb-4';
+    const h3 = document.createElement('h3');
+    h3.className = 'text-xl font-bold text-white';
+    h3.textContent = `Αγώνας ${gameIndex + 1}`;
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'p-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition';
+    removeBtn.title = 'Διαγραφή Αγώνα';
+    removeBtn.innerHTML = trashSvg();
+    removeBtn.addEventListener('click', () => {
+      removeGame(gameIndex);
+    });
+
+    headerRow.appendChild(h3);
+    headerRow.appendChild(removeBtn);
+    gameEl.appendChild(headerRow);
+
+    // teams selects
+    const grid = document.createElement('div');
+    grid.className = 'grid grid-cols-2 gap-4 mb-4';
+
+    // home
+    const divHome = document.createElement('div');
+    const labelHome = document.createElement('label');
+    labelHome.className = 'block text-blue-300 font-semibold mb-2';
+    labelHome.textContent = 'Γηπεδούχος';
+    const selHome = document.createElement('select');
+    selHome.className = 'w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-blue-500/30 focus:border-blue-500 focus:outline-none';
+    selHome.innerHTML = `<option value="">Επιλέξτε ομάδα</option>${renderTeamsOptions()}`;
+    selHome.value = game.homeTeam || '';
+    selHome.addEventListener('change', (e) => updateGame(gameIndex, 'homeTeam', e.target.value));
+    divHome.appendChild(labelHome);
+    divHome.appendChild(selHome);
+
+    // away
+    const divAway = document.createElement('div');
+    const labelAway = document.createElement('label');
+    labelAway.className = 'block text-blue-300 font-semibold mb-2';
+    labelAway.textContent = 'Φιλοξενούμενος';
+    const selAway = document.createElement('select');
+    selAway.className = 'w-full px-4 py-2 bg-slate-600 text-white rounded-lg border border-blue-500/30 focus:border-blue-500 focus:outline-none';
+    selAway.innerHTML = `<option value="">Επιλέξτε ομάδα</option>${renderTeamsOptions()}`;
+    selAway.value = game.awayTeam || '';
+    selAway.addEventListener('change', (e) => updateGame(gameIndex, 'awayTeam', e.target.value));
+    divAway.appendChild(labelAway);
+    divAway.appendChild(selAway);
+
+    grid.appendChild(divHome);
+    grid.appendChild(divAway);
+    gameEl.appendChild(grid);
+
+    // Final score display
+    const finalRow = document.createElement('div');
+    finalRow.className = 'flex items-center gap-4 mb-4 justify-center';
+
+    const leftScore = document.createElement('div');
+    leftScore.className = 'text-center';
+    leftScore.innerHTML = `<label class="block text-blue-300 text-sm mb-1">Sets Γηπ.</label>
+      <div class="text-3xl font-bold text-white bg-slate-600 px-6 py-2 rounded-lg">${game.homeScore || 0}</div>`;
+
+    const dash = document.createElement('div');
+    dash.className = 'text-3xl font-bold text-blue-400';
+    dash.textContent = '-';
+
+    const rightScore = document.createElement('div');
+    rightScore.className = 'text-center';
+    rightScore.innerHTML = `<label class="block text-blue-300 text-sm mb-1">Sets Φιλ.</label>
+      <div class="text-3xl font-bold text-white bg-slate-600 px-6 py-2 rounded-lg">${game.awayScore || 0}</div>`;
+
+    finalRow.appendChild(leftScore);
+    finalRow.appendChild(dash);
+    finalRow.appendChild(rightScore);
+    gameEl.appendChild(finalRow);
+
+    // Sets area
+    const setsWrapper = document.createElement('div');
+    setsWrapper.className = 'space-y-3';
+
+    const setsHeader = document.createElement('div');
+    setsHeader.className = 'flex justify-between items-center';
+    const setsLabel = document.createElement('label');
+    setsLabel.className = 'text-blue-300 font-semibold';
+    setsLabel.textContent = 'Σετ';
+
+    const addSetBtn = document.createElement('button');
+    addSetBtn.className = 'px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg transition text-sm flex items-center gap-2';
+    addSetBtn.innerHTML = `${plusSvg()} Προσθήκη Σετ`;
+    addSetBtn.addEventListener('click', () => addSet(gameIndex));
+
+    setsHeader.appendChild(setsLabel);
+    setsHeader.appendChild(addSetBtn);
+    setsWrapper.appendChild(setsHeader);
+
+    // each set
+    game.sets.forEach((set, setIndex) => {
+      const setRow = document.createElement('div');
+      setRow.className = 'flex items-center gap-3 bg-slate-600/50 p-3 rounded-lg';
+
+      const setLabel = document.createElement('span');
+      setLabel.className = 'text-white font-semibold min-w-[60px]';
+      setLabel.textContent = `${setIndex + 1}ο Σετ`;
+
+      const homeInput = document.createElement('input');
+      homeInput.type = 'number';
+      homeInput.min = '0';
+      homeInput.value = set.homePoints;
+      homeInput.className = 'w-20 px-3 py-2 bg-slate-700 text-white rounded-lg border border-blue-500/30 focus:border-blue-500 focus:outline-none text-center';
+      homeInput.addEventListener('input', (e) => updateSet(gameIndex, setIndex, 'homePoints', e.target.value));
+
+      const midDash = document.createElement('span');
+      midDash.className = 'text-blue-400 font-bold';
+      midDash.textContent = '-';
+
+      const awayInput = document.createElement('input');
+      awayInput.type = 'number';
+      awayInput.min = '0';
+      awayInput.value = set.awayPoints;
+      awayInput.className = 'w-20 px-3 py-2 bg-slate-700 text-white rounded-lg border border-blue-500/30 focus:border-blue-500 focus:outline-none text-center';
+      awayInput.addEventListener('input', (e) => updateSet(gameIndex, setIndex, 'awayPoints', e.target.value));
+
+      const removeSetBtn = document.createElement('button');
+      removeSetBtn.className = 'ml-auto p-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition';
+      removeSetBtn.title = 'Διαγραφή Σετ';
+      removeSetBtn.innerHTML = trashSvg(16);
+      removeSetBtn.addEventListener('click', () => removeSet(gameIndex, setIndex));
+
+      setRow.appendChild(setLabel);
+      setRow.appendChild(homeInput);
+      setRow.appendChild(midDash);
+      setRow.appendChild(awayInput);
+      setRow.appendChild(removeSetBtn);
+      setsWrapper.appendChild(setRow);
+    });
+
+    gameEl.appendChild(setsWrapper);
+    gamesContainer.appendChild(gameEl);
+  });
+
+  updateUploadButtonState();
+  renderPreviewIfVisible();
+}
+
+function renderPreviewIfVisible() {
+  if (!showPreview) {
+    previewArea.classList.add('hidden');
+    togglePreviewLabel.textContent = 'Preview';
+    return;
+  }
+  previewArea.classList.remove('hidden');
+  togglePreviewLabel.textContent = 'Απόκρυψη Preview';
+  const combined = [...gamedays, currentGameday];
+  previewJson.textContent = JSON.stringify(combined, null, 2);
+}
+
+function updateUploadButtonState() {
+  const uploadBtn = uploadGhBtn;
+  const disabled = !currentGameday.title || !currentGameday.games.length || isUploading;
+  if (disabled) uploadBtn.classList.add('disabled');
+  else uploadBtn.classList.remove('disabled');
+  uploadBtn.disabled = disabled;
+}
+
+/* ========== Icons SVG helpers ========== */
+function plusSvg(size = 16) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+}
+function trashSvg(size = 20) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`;
+}
+
+/* ========== State mutation functions ========== */
+
+function addGame() {
+  currentGameday.games.push(emptyGame());
+  renderGames();
+}
+
+function removeGame(index) {
+  currentGameday.games.splice(index, 1);
+  renderGames();
+}
+
+function updateGame(index, field, value) {
+  currentGameday.games[index][field] = value;
+  renderGames(); // re-render to update selects and derived state
+}
+
+function addSet(gameIndex) {
+  currentGameday.games[gameIndex].sets.push({ homePoints: 0, awayPoints: 0 });
+  renderGames();
+}
+
+function updateSet(gameIndex, setIndex, field, value) {
+  const parsed = parseInt(value);
+  currentGameday.games[gameIndex].sets[setIndex][field] = isNaN(parsed) ? 0 : parsed;
+
+  // auto-calc main scores
+  let homeScore = 0, awayScore = 0;
+  currentGameday.games[gameIndex].sets.forEach(s => {
+    if ((s.homePoints || 0) > (s.awayPoints || 0)) homeScore++;
+    else if ((s.awayPoints || 0) > (s.homePoints || 0)) awayScore++;
+  });
+  currentGameday.games[gameIndex].homeScore = homeScore;
+  currentGameday.games[gameIndex].awayScore = awayScore;
+
+  renderGames();
+}
+
+function removeSet(gameIndex, setIndex) {
+  currentGameday.games[gameIndex].sets.splice(setIndex, 1);
+  // recalc scores
+  let hs = 0, as = 0;
+  currentGameday.games[gameIndex].sets.forEach(s => {
+    if ((s.homePoints || 0) > (s.awayPoints || 0)) hs++;
+    else if ((s.awayPoints || 0) > (s.homePoints || 0)) as++;
+  });
+  currentGameday.games[gameIndex].homeScore = hs;
+  currentGameday.games[gameIndex].awayScore = as;
+  renderGames();
+}
+
+/* ========== GitHub upload logic (mirrors original) ========== */
+
+async function uploadToGitHub() {
+  // read inputs
+  githubConfig.token = ghTokenInput.value.trim();
+  githubConfig.owner = ghOwnerInput.value.trim();
+  githubConfig.repo = ghRepoInput.value.trim();
+  githubConfig.branch = ghBranchInput.value.trim() || 'main';
+
+  if (!githubConfig.token || !githubConfig.owner || !githubConfig.repo) {
+    setUploadStatus({ type: 'error', message: 'Παρακαλώ συμπληρώστε όλα τα στοιχεία GitHub' });
+    return;
+  }
+
+  isUploading = true;
+  setUploadStatus({ type: 'info', message: 'Ανέβασμα στο GitHub...' });
+  updateUploadButtonState();
+
+  try {
+    const getUrl = `https://api.github.com/repos/${githubConfig.owner}/${githubConfig.repo}/contents/volleyball-results.json`;
+    let sha = null;
+    let existingGamedays = [];
+
+    // try fetch existing file
+    try {
+      const getResponse = await fetch(getUrl, {
+        headers: {
+          'Authorization': `token ${githubConfig.token}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+      if (getResponse.ok) {
+        const data = await getResponse.json();
+        sha = data.sha;
+        // decode content: GitHub returns base64 encoded content with possible newlines
+        try {
+          const content = atob(data.content.replace(/\\n/g, ''));
+          existingGamedays = JSON.parse(content);
+        } catch (e) {
+          console.warn('Could not parse existing content', e);
+          existingGamedays = [];
+        }
+      } else {
+        // not ok: maybe file doesn't exist. ignore and create new
+        // console.warn('GET file not ok', getResponse.status);
+      }
+    } catch (err) {
+      console.warn('File does not exist or fetch blocked', err);
+    }
+
+    // append new gameday
+    const updatedGamedays = [...existingGamedays, currentGameday];
+    const jsonContent = JSON.stringify(updatedGamedays, null, 2);
+    // encode to base64 (Unicode-safe)
+    const encodedContent = btoa(unescape(encodeURIComponent(jsonContent)));
+
+    const uploadUrl = getUrl;
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `token ${githubConfig.token}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        message: `Update volleyball results - ${currentGameday.title || new Date().toISOString()}`,
+        content: encodedContent,
+        branch: githubConfig.branch,
+        ...(sha && { sha })
+      })
+    });
+
+    if (!uploadResponse.ok) {
+      const errorData = await uploadResponse.json();
+      throw new Error(errorData.message || 'Failed to upload');
+    }
+
+    setUploadStatus({
+      type: 'success',
+      message: '✅ Επιτυχής ανέβασμα στο GitHub! Τα αποτελέσματα είναι live.'
+    });
+
+    // update local gamedays, reset current
+    gamedays = updatedGamedays;
+    currentGameday = { title: '', games: [] };
+
+    // clear title input, re-render
+    gamedayTitleInput.value = '';
+    renderGames();
+
+  } catch (error) {
+    setUploadStatus({
+      type: 'error',
+      message: `❌ Σφάλμα: ${error.message}`
+    });
+  } finally {
+    isUploading = false;
+    updateUploadButtonState();
+  }
+}
+
+/* ========== Events wiring ========== */
+
+addGameBtn.addEventListener('click', () => {
+  addGame();
+});
+
+togglePreviewBtn.addEventListener('click', () => {
+  showPreview = !showPreview;
+  renderPreviewIfVisible();
+});
+
+uploadGhBtn.addEventListener('click', async () => {
+  if (uploadGhBtn.disabled) return;
+  await uploadToGitHub();
+});
+
+// inputs update
+ghTokenInput.addEventListener('input', (e) => { githubConfig.token = e.target.value; });
+ghOwnerInput.addEventListener('input', (e) => { githubConfig.owner = e.target.value; });
+ghRepoInput.addEventListener('input', (e) => { githubConfig.repo = e.target.value; });
+ghBranchInput.addEventListener('input', (e) => { githubConfig.branch = e.target.value || 'main'; });
+
+gamedayTitleInput.addEventListener('input', (e) => {
+  currentGameday.title = e.target.value;
+  updateUploadButtonState();
+});
+
+/* ========== Initial render ========== */
+
+function init() {
+  // start with an empty UI (no games)
+  renderGames();
+  setUploadStatus({ type: '', message: '' });
+}
+
+init();
+
+/* ========== Utility SVGs ========== */
+
+function trashSvgSmall() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`;
+</script>
+
+</body>
+</html>
